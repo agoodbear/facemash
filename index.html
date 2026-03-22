@@ -76,6 +76,7 @@
 </div>
 
 <video id="video-hidden" autoplay playsinline muted></video>
+<video id="video-preview" autoplay playsinline muted style="width:100px;height:80px;border-radius:8px;border:2px solid #e94560;display:none;position:fixed;bottom:80px;right:10px;object-fit:cover;z-index:100;"></video>
 
 <script>
 // ── 名畫設定（嘴巴位置需根據圖片手動調整）──
@@ -115,31 +116,14 @@ function loadScript(src) {
 }
 
 async function init() {
-  setStatus("📦 載入人臉偵測模型...");
-  
-  try {
-    await loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
-    
-    await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights')
-    ]);
-    
-    faceApiLoaded = true;
-    setStatus("✅ 模型載入完成");
-  } catch(e) {
-    setStatus("⚠️ 模型載入失敗，使用簡化模式");
-    console.error(e);
-  }
-  
   // 載入名畫
   setStatus("🎨 載入名畫...");
   for (let p of PAINTINGS) {
     let img = new Image();
     img.crossOrigin = "anonymous";
-    await new Promise((res, rej) => {
+    await new Promise((res) => {
       img.onload = res;
-      img.onerror = rej;
+      img.onerror = res; // 失敗也繼續
       img.src = p.file;
     });
     paintingImgs.push(img);
@@ -152,12 +136,34 @@ async function init() {
       video: { facingMode: 'user', width: 640, height: 480 } 
     });
     videoEl.srcObject = stream;
-    await new Promise(r => videoEl.onloadedmetadata = r);
+    await new Promise(r => { videoEl.onloadedmetadata = r; });
     videoEl.play();
-    setStatus("😊 把臉對準鏡頭！N = 換名畫");
+    // 顯示小預覽確認鏡頭有開
+    const preview = document.getElementById('video-preview');
+    preview.srcObject = stream;
+    preview.style.display = 'block';
+    setStatus("😊 把臉對準鏡頭！換名畫用按鈕");
+    
+    // 載入 face-api.js（相機開好後才載）
+    try {
+      await loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'),
+        faceapi.nets.faceLandmark68TinyNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights')
+      ]);
+      faceApiLoaded = true;
+      setStatus("✅ 準備好了！把嘴巴對準鏡頭");
+    } catch(e) {
+      setStatus("😊 相機已開啟（簡化模式，嘴巴偵測需要稍等）");
+    }
+    
     startLoop();
   } catch(e) {
-    setStatus("❌ 無法存取相機：" + e.message);
+    setStatus("❌ 請允許相機存取後重新整理頁面");
+    // 顯示一個提示按鈕
+    document.getElementById('controls').innerHTML = 
+      '<button onclick="location.reload()">🔄 重新整理並允許相機</button>' +
+      document.getElementById('controls').innerHTML;
   }
 }
 
