@@ -34,13 +34,14 @@
     border-radius: 50%;
     cursor: pointer;
     touch-action: none;
+    transform-origin: center center;
   }
   #mouth-box.edit-mode {
     border: 3px dashed #00ff88;
     cursor: move;
     box-shadow: 0 0 10px rgba(0,255,136,0.5);
   }
-  /* 縮放把手 */
+  /* 縮放把手（右下角） */
   #resize-handle {
     position: absolute;
     width: 22px;
@@ -56,7 +57,26 @@
     justify-content: center;
     font-size: 12px;
   }
-  #mouth-box.edit-mode #resize-handle {
+  /* 旋轉把手（左下角） */
+  #rotate-handle {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: #ff6b35;
+    border-radius: 50%;
+    bottom: -11px;
+    left: -11px;
+    cursor: grab;
+    touch-action: none;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    user-select: none;
+  }
+  #rotate-handle:active { cursor: grabbing; }
+  #mouth-box.edit-mode #resize-handle,
+  #mouth-box.edit-mode #rotate-handle {
     display: flex;
   }
   #controls {
@@ -105,11 +125,12 @@
 <div id="canvas-wrap">
   <canvas id="main-canvas"></canvas>
   <div id="mouth-box">
+    <div id="rotate-handle">✕</div>
     <div id="resize-handle">⤡</div>
   </div>
 </div>
 <div id="status">載入中...</div>
-<div id="coords-display">x:305 y:365 w:120 h:45</div>
+<div id="coords-display">x:305 y:365 w:120 h:45 °0</div>
 
 <div id="controls">
   <button onclick="prevPainting()">⬅️</button>
@@ -123,61 +144,17 @@
 
 <script>
 const PAINTINGS = [
-  {
-    name: "蒙娜麗莎",
-    file: "paintings/mona_lisa.jpg",
-    mouth: { x: 305, y: 365, w: 120, h: 45 }
-  },
-  {
-    name: "戴珍珠耳環的少女",
-    file: "paintings/girl_pearl.jpg",
-    mouth: { x: 310, y: 620, w: 130, h: 50 }
-  },
-  {
-    name: "倒牛奶的女僕（維梅爾）",
-    file: "paintings/milkmaid.jpg",
-    mouth: { x: 310, y: 450, w: 130, h: 50 }
-  },
-  {
-    name: "林布蘭自畫像",
-    file: "paintings/rembrandt.jpg",
-    mouth: { x: 310, y: 580, w: 130, h: 50 }
-  },
-  {
-    name: "阿波羅貝爾維德雷",
-    file: "paintings/apollo.jpg",
-    mouth: { x: 255, y: 168, w: 65, h: 25 }
-  },
-  {
-    name: "抱銀貂的女人（達文西）",
-    file: "paintings/ermine_lady.jpg",
-    mouth: { x: 285, y: 355, w: 75, h: 30 }
-  },
-  {
-    name: "岩窟聖母（達文西）",
-    file: "paintings/madonna.jpg",
-    mouth: { x: 285, y: 383, w: 55, h: 22 }
-  },
-  {
-    name: "著衣的瑪哈（哥雅）",
-    file: "paintings/maja.jpg",
-    mouth: { x: 449, y: 106, w: 28, h: 14 }
-  },
-  {
-    name: "伊斯沃斯蒙娜麗莎",
-    file: "paintings/mona2.jpg",
-    mouth: { x: 295, y: 345, w: 80, h: 30 }
-  },
-  {
-    name: "戴紅帽的少女（維梅爾）",
-    file: "paintings/red_hat_girl.jpg",
-    mouth: { x: 265, y: 408, w: 70, h: 28 }
-  },
-  {
-    name: "維納斯的誕生（波提切利）",
-    file: "paintings/venus.jpg",
-    mouth: { x: 308, y: 122, w: 25, h: 14 }
-  }
+  { name: "蒙娜麗莎",             file: "paintings/mona_lisa.jpg",    mouth: { x: 305, y: 365, w: 120, h: 45, angle: 0 } },
+  { name: "戴珍珠耳環的少女",      file: "paintings/girl_pearl.jpg",   mouth: { x: 310, y: 620, w: 130, h: 50, angle: 0 } },
+  { name: "倒牛奶的女僕（維梅爾）", file: "paintings/milkmaid.jpg",     mouth: { x: 310, y: 450, w: 130, h: 50, angle: 0 } },
+  { name: "林布蘭自畫像",          file: "paintings/rembrandt.jpg",    mouth: { x: 310, y: 580, w: 130, h: 50, angle: 0 } },
+  { name: "阿波羅貝爾維德雷",       file: "paintings/apollo.jpg",       mouth: { x: 255, y: 168, w: 65,  h: 25, angle: 0 } },
+  { name: "抱銀貂的女人（達文西）", file: "paintings/ermine_lady.jpg",  mouth: { x: 285, y: 355, w: 75,  h: 30, angle: 0 } },
+  { name: "岩窟聖母（達文西）",     file: "paintings/madonna.jpg",      mouth: { x: 285, y: 383, w: 55,  h: 22, angle: 0 } },
+  { name: "著衣的瑪哈（哥雅）",     file: "paintings/maja.jpg",         mouth: { x: 449, y: 106, w: 28,  h: 14, angle: 0 } },
+  { name: "伊斯沃斯蒙娜麗莎",       file: "paintings/mona2.jpg",        mouth: { x: 295, y: 345, w: 80,  h: 30, angle: 0 } },
+  { name: "戴紅帽的少女（維梅爾）", file: "paintings/red_hat_girl.jpg", mouth: { x: 265, y: 408, w: 70,  h: 28, angle: 0 } },
+  { name: "維納斯的誕生（波提切利）",file: "paintings/venus.jpg",        mouth: { x: 308, y: 122, w: 25,  h: 14, angle: 0 } }
 ];
 
 // 備份原始嘴巴座標（用於重置）
@@ -193,47 +170,57 @@ let lastFaceLandmarks = null;
 let frameCount = 0;
 let paintScale = 1;
 
-// ── 嘴巴框拖動狀態 ──
+// ── 嘴巴框狀態 ──
 let mouthBox = document.getElementById('mouth-box');
 let resizeHandle = document.getElementById('resize-handle');
-let isDragging = false, isResizing = false, isEditMode = false;
+let rotateHandle = document.getElementById('rotate-handle');
+let isDragging = false, isResizing = false, isRotating = false, isEditMode = false;
 let dragStartX, dragStartY, boxStartLeft, boxStartTop;
 let resizeStartX, resizeStartY, boxStartW, boxStartH;
+let rotateStartAngle = 0, rotateStartPointerAngle = 0;
+let currentAngle = 0; // degrees
 
-// 把顯示座標轉回原始圖片座標
+// ── 取嘴巴框目前的螢幕座標 ──
+function getBoxScreen() {
+  return {
+    left: parseInt(mouthBox.style.left) || 0,
+    top:  parseInt(mouthBox.style.top)  || 0,
+    w:    parseInt(mouthBox.style.width)  || 120,
+    h:    parseInt(mouthBox.style.height) || 45
+  };
+}
+
+// ── 把顯示座標轉回原始圖片座標 ──
 function getOrigCoords() {
-  const wrap = document.getElementById('canvas-wrap');
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  
-  const left = parseInt(mouthBox.style.left) || 0;
-  const top = parseInt(mouthBox.style.top) || 0;
-  const w = parseInt(mouthBox.style.width) || 120;
-  const h = parseInt(mouthBox.style.height) || 45;
-  
+  const { left, top, w, h } = getBoxScreen();
   return {
     x: Math.round(left / paintScale),
-    y: Math.round(top / paintScale),
-    w: Math.round(w / paintScale),
-    h: Math.round(h / paintScale)
+    y: Math.round(top  / paintScale),
+    w: Math.round(w    / paintScale),
+    h: Math.round(h    / paintScale),
+    angle: Math.round(currentAngle)
   };
 }
 
 function updateCoordsDisplay() {
   const c = getOrigCoords();
-  document.getElementById('coords-display').textContent = 
-    `x:${c.x} y:${c.y} w:${c.w} h:${c.h}`;
-  // 同步到 PAINTINGS 儲存
+  document.getElementById('coords-display').textContent =
+    `x:${c.x} y:${c.y} w:${c.w} h:${c.h} °${c.angle}`;
   PAINTINGS[currentIdx].mouth = c;
 }
 
-// ── 拖動嘴巴框 ──
+function applyTransform() {
+  mouthBox.style.transform = `rotate(${currentAngle}deg)`;
+}
+
+// ── 進出編輯模式 ──
 let tapStartX, tapStartY, tapMoved = false;
+let lastTapTime = 0;
 
 function enterEditMode() {
   isEditMode = true;
   mouthBox.classList.add('edit-mode');
-  setStatus("✏️ 拖動調位置，右下角縮放，連點兩下退出");
+  setStatus("✏️ 拖動調位置｜右下角●縮放｜左下角✕旋轉｜雙擊退出");
 }
 
 function exitEditMode() {
@@ -242,73 +229,121 @@ function exitEditMode() {
   setStatus("✅ 完成！點嘴巴位置可再次調整");
 }
 
+// ── 拖動本體 ──
 function onDragStart(e) {
-  if (e.target === resizeHandle) return;
   if (!isEditMode) return;
   isDragging = true;
   tapMoved = false;
-  const touch = e.touches ? e.touches[0] : e;
-  dragStartX = touch.clientX;
-  dragStartY = touch.clientY;
-  boxStartLeft = parseInt(mouthBox.style.left) || 0;
-  boxStartTop = parseInt(mouthBox.style.top) || 0;
+  const t = e.touches ? e.touches[0] : e;
+  dragStartX = t.clientX;
+  dragStartY = t.clientY;
+  ({ left: boxStartLeft, top: boxStartTop } = getBoxScreen());
   e.preventDefault();
 }
 
 function onDragMove(e) {
   if (!isDragging) return;
-  const touch = e.touches ? e.touches[0] : e;
-  const dx = touch.clientX - dragStartX;
-  const dy = touch.clientY - dragStartY;
+  const t = e.touches ? e.touches[0] : e;
+  const dx = t.clientX - dragStartX;
+  const dy = t.clientY - dragStartY;
   if (Math.abs(dx) > 5 || Math.abs(dy) > 5) tapMoved = true;
   mouthBox.style.left = (boxStartLeft + dx) + 'px';
-  mouthBox.style.top = (boxStartTop + dy) + 'px';
+  mouthBox.style.top  = (boxStartTop  + dy) + 'px';
   updateCoordsDisplay();
   e.preventDefault();
 }
 
-function onDragEnd(e) {
-  isDragging = false;
+function onDragEnd() { isDragging = false; }
+
+// ── 縮放把手（右下角） ──
+function onResizeStart(e) {
+  if (!isEditMode) return;
+  isResizing = true;
+  const t = e.touches ? e.touches[0] : e;
+  resizeStartX = t.clientX;
+  resizeStartY = t.clientY;
+  ({ w: boxStartW, h: boxStartH } = getBoxScreen());
+  e.preventDefault();
+  e.stopPropagation();
 }
 
-// ── 點擊邏輯（用 touchstart/touchend 自己管，不依賴 click）──
-let lastTapTime = 0;
+function onResizeMove(e) {
+  if (!isResizing) return;
+  const t = e.touches ? e.touches[0] : e;
+  const newW = Math.max(20, boxStartW + (t.clientX - resizeStartX));
+  const newH = Math.max(10, boxStartH + (t.clientY - resizeStartY));
+  mouthBox.style.width  = newW + 'px';
+  mouthBox.style.height = newH + 'px';
+  updateCoordsDisplay();
+  e.preventDefault();
+}
 
+function onResizeEnd() { isResizing = false; }
+
+// ── 旋轉把手（左下角） ──
+function getBoxCenter() {
+  const wrap = document.getElementById('canvas-wrap');
+  const wrapRect = wrap.getBoundingClientRect();
+  const { left, top, w, h } = getBoxScreen();
+  return {
+    cx: wrapRect.left + left + w / 2,
+    cy: wrapRect.top  + top  + h / 2
+  };
+}
+
+function onRotateStart(e) {
+  if (!isEditMode) return;
+  isRotating = true;
+  const t = e.touches ? e.touches[0] : e;
+  const { cx, cy } = getBoxCenter();
+  rotateStartPointerAngle = Math.atan2(t.clientY - cy, t.clientX - cx) * 180 / Math.PI;
+  rotateStartAngle = currentAngle;
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function onRotateMove(e) {
+  if (!isRotating) return;
+  const t = e.touches ? e.touches[0] : e;
+  const { cx, cy } = getBoxCenter();
+  const pointerAngle = Math.atan2(t.clientY - cy, t.clientX - cx) * 180 / Math.PI;
+  currentAngle = rotateStartAngle + (pointerAngle - rotateStartPointerAngle);
+  applyTransform();
+  updateCoordsDisplay();
+  e.preventDefault();
+}
+
+function onRotateEnd() { isRotating = false; }
+
+// ── 觸控點擊邏輯（touchstart/touchend 自己管）──
 mouthBox.addEventListener('touchstart', (e) => {
-  if (e.target === resizeHandle) return;
+  if (e.target === resizeHandle || e.target === rotateHandle) return;
   tapStartX = e.touches[0].clientX;
   tapStartY = e.touches[0].clientY;
   tapMoved = false;
-  // 同時觸發拖動
   if (isEditMode) onDragStart(e);
 }, { passive: false });
 
 mouthBox.addEventListener('touchend', (e) => {
-  if (e.target === resizeHandle) return;
-  onDragEnd(e);
-  if (tapMoved) return; // 有移動就不算點擊
-  
+  if (e.target === resizeHandle || e.target === rotateHandle) return;
+  onDragEnd();
+  if (tapMoved) return;
   const now = Date.now();
   const gap = now - lastTapTime;
   lastTapTime = now;
-  
-  if (!isEditMode) {
-    enterEditMode();
-  } else if (gap < 400) {
-    // 雙擊退出
-    exitEditMode();
-  }
+  if (!isEditMode) { enterEditMode(); }
+  else if (gap < 400) { exitEditMode(); }
   e.preventDefault();
 }, { passive: false });
 
-// 電腦滑鼠版
+// ── 滑鼠版 ──
 mouthBox.addEventListener('mousedown', (e) => {
-  if (e.target === resizeHandle) return;
+  if (e.target === resizeHandle || e.target === rotateHandle) return;
   tapMoved = false;
   if (isEditMode) onDragStart(e);
 });
 mouthBox.addEventListener('click', (e) => {
-  if (e.target === resizeHandle) return;
+  if (e.target === resizeHandle || e.target === rotateHandle) return;
   if (tapMoved) return;
   if (!isEditMode) enterEditMode();
 });
@@ -316,51 +351,27 @@ mouthBox.addEventListener('dblclick', (e) => {
   if (isEditMode) exitEditMode();
 });
 
-// ── 縮放把手 ──
-function onResizeStart(e) {
-  if (!isEditMode) return;
-  isResizing = true;
-  const touch = e.touches ? e.touches[0] : e;
-  resizeStartX = touch.clientX;
-  resizeStartY = touch.clientY;
-  boxStartW = parseInt(mouthBox.style.width) || 120;
-  boxStartH = parseInt(mouthBox.style.height) || 45;
-  e.preventDefault();
-  e.stopPropagation();
-}
-
-function onResizeMove(e) {
-  if (!isResizing) return;
-  const touch = e.touches ? e.touches[0] : e;
-  const dw = touch.clientX - resizeStartX;
-  const dh = touch.clientY - resizeStartY;
-  const newW = Math.max(40, boxStartW + dw);
-  const newH = Math.max(20, boxStartH + dh);
-  mouthBox.style.width = newW + 'px';
-  mouthBox.style.height = newH + 'px';
-  updateCoordsDisplay();
-  e.preventDefault();
-}
-
-function onResizeEnd(e) {
-  isResizing = false;
-}
-
-// 綁定事件（mouthBox 的 mousedown/touchstart 在上方點擊邏輯裡處理）
-document.addEventListener('mousemove', (e) => { onDragMove(e); onResizeMove(e); });
-document.addEventListener('touchmove', (e) => { onDragMove(e); onResizeMove(e); }, { passive: false });
-document.addEventListener('mouseup', (e) => { onDragEnd(e); onResizeEnd(e); });
-document.addEventListener('touchend', (e) => { onResizeEnd(e); });
-resizeHandle.addEventListener('mousedown', onResizeStart);
+// ── 綁定把手事件 ──
+resizeHandle.addEventListener('mousedown',  onResizeStart);
 resizeHandle.addEventListener('touchstart', onResizeStart, { passive: false });
+rotateHandle.addEventListener('mousedown',  onRotateStart);
+rotateHandle.addEventListener('touchstart', onRotateStart, { passive: false });
+
+// ── 全域移動 / 放開 ──
+document.addEventListener('mousemove', (e) => { onDragMove(e); onResizeMove(e); onRotateMove(e); });
+document.addEventListener('touchmove', (e) => { onDragMove(e); onResizeMove(e); onRotateMove(e); }, { passive: false });
+document.addEventListener('mouseup',  () => { onDragEnd(); onResizeEnd(); onRotateEnd(); });
+document.addEventListener('touchend', () => { onDragEnd(); onResizeEnd(); onRotateEnd(); });
 
 // ── 更新嘴巴框位置 ──
 function positionMouthBox() {
   const m = PAINTINGS[currentIdx].mouth;
-  mouthBox.style.left = Math.round(m.x * paintScale) + 'px';
-  mouthBox.style.top = Math.round(m.y * paintScale) + 'px';
-  mouthBox.style.width = Math.round(m.w * paintScale) + 'px';
+  mouthBox.style.left   = Math.round(m.x * paintScale) + 'px';
+  mouthBox.style.top    = Math.round(m.y * paintScale) + 'px';
+  mouthBox.style.width  = Math.round(m.w * paintScale) + 'px';
   mouthBox.style.height = Math.round(m.h * paintScale) + 'px';
+  currentAngle = m.angle || 0;
+  applyTransform();
   updateCoordsDisplay();
 }
 
@@ -373,9 +384,7 @@ function resetMouth() {
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     let s = document.createElement('script');
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = reject;
+    s.src = src; s.onload = resolve; s.onerror = reject;
     document.head.appendChild(s);
   });
 }
@@ -397,8 +406,7 @@ async function init() {
     await new Promise(r => { videoEl.onloadedmetadata = r; });
     videoEl.play();
     setStatus("✅ 拖動綠色框調整嘴巴位置！");
-    
-    // 背景載入 face-api
+
     loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js').then(async () => {
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'),
@@ -407,7 +415,7 @@ async function init() {
       faceApiLoaded = true;
       setStatus("🎯 精確模式啟動！拖動綠框調位置");
     }).catch(() => {});
-    
+
     startLoop();
   } catch(e) {
     setStatus("❌ 請允許相機存取後重新整理");
@@ -442,21 +450,23 @@ function drawFrame() {
 
   const maxH = Math.min(window.innerHeight * 0.70, 750);
   paintScale = maxH / paintImg.height;
-  canvas.width = Math.round(paintImg.width * paintScale);
+  canvas.width  = Math.round(paintImg.width  * paintScale);
   canvas.height = Math.round(paintImg.height * paintScale);
-  
+
   ctx.drawImage(paintImg, 0, 0, canvas.width, canvas.height);
 
   if (videoEl.readyState < 2) return;
-  
-  // 取嘴巴框的當前位置（從 DOM 讀取，因為使用者可以拖動）
+
+  // 嘴巴框位置（螢幕座標，可能被拖動）
   const boxLeft = parseInt(mouthBox.style.left) || Math.round(PAINTINGS[currentIdx].mouth.x * paintScale);
-  const boxTop = parseInt(mouthBox.style.top) || Math.round(PAINTINGS[currentIdx].mouth.y * paintScale);
-  const boxW = parseInt(mouthBox.style.width) || Math.round(PAINTINGS[currentIdx].mouth.w * paintScale);
-  const boxH = parseInt(mouthBox.style.height) || Math.round(PAINTINGS[currentIdx].mouth.h * paintScale);
-  
+  const boxTop  = parseInt(mouthBox.style.top)  || Math.round(PAINTINGS[currentIdx].mouth.y * paintScale);
+  const boxW    = parseInt(mouthBox.style.width)  || Math.round(PAINTINGS[currentIdx].mouth.w * paintScale);
+  const boxH    = parseInt(mouthBox.style.height) || Math.round(PAINTINGS[currentIdx].mouth.h * paintScale);
+  const cx = boxLeft + boxW / 2;
+  const cy = boxTop  + boxH / 2;
+  const angleRad = currentAngle * Math.PI / 180;
+
   let sx, sy, sw, sh;
-  
   if (lastFaceLandmarks) {
     const mouthPts = lastFaceLandmarks.getMouth();
     const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
@@ -471,33 +481,37 @@ function drawFrame() {
     ({ sx, sy, sw, sh } = r);
   }
 
+  // 以框中心旋轉後貼上嘴巴
   ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angleRad);
   ctx.beginPath();
-  ctx.ellipse(boxLeft+boxW/2, boxTop+boxH/2, boxW/2*1.05, boxH/2*1.15, 0, 0, Math.PI*2);
+  ctx.ellipse(0, 0, boxW/2*1.05, boxH/2*1.15, 0, 0, Math.PI*2);
   ctx.clip();
-  ctx.drawImage(videoEl, sx, sy, sw, sh, boxLeft-boxW*0.02, boxTop-boxH*0.08, boxW*1.04, boxH*1.16);
+  ctx.drawImage(videoEl, sx, sy, sw, sh,
+    -boxW/2 - boxW*0.02, -boxH/2 - boxH*0.08,
+    boxW*1.04, boxH*1.16);
   ctx.restore();
-  
-  // 更新綠框位置（確保跟 canvas 同步）
-  if (!isDragging && !isResizing) {
+
+  // 保持綠框位置同步（非操作時）
+  if (!isDragging && !isResizing && !isRotating) {
     positionMouthBox();
   }
 }
 
 function nextPainting() {
-  currentIdx = (currentIdx+1) % PAINTINGS.length;
+  currentIdx = (currentIdx + 1) % PAINTINGS.length;
   document.getElementById('painting-name').textContent = PAINTINGS[currentIdx].name;
   positionMouthBox();
 }
 
 function prevPainting() {
-  currentIdx = (currentIdx-1+PAINTINGS.length) % PAINTINGS.length;
+  currentIdx = (currentIdx - 1 + PAINTINGS.length) % PAINTINGS.length;
   document.getElementById('painting-name').textContent = PAINTINGS[currentIdx].name;
   positionMouthBox();
 }
 
 function saveScreenshot() {
-  // 截圖時隱藏綠框
   mouthBox.style.display = 'none';
   const link = document.createElement('a');
   link.download = `facemash_${Date.now()}.png`;
