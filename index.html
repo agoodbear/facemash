@@ -223,8 +223,9 @@ function onDragEnd(e) {
   isDragging = false;
 }
 
-// 點擊切換編輯模式（只在沒拖動時觸發）
+// 單擊進入編輯模式，雙擊退出
 let tapStartX, tapStartY, wasDragging = false;
+let lastTapTime = 0;
 
 mouthBox.addEventListener('touchstart', (e) => {
   tapStartX = e.touches[0].clientX;
@@ -237,15 +238,38 @@ mouthBox.addEventListener('touchend', (e) => {
   const dx = Math.abs(e.changedTouches[0].clientX - tapStartX);
   const dy = Math.abs(e.changedTouches[0].clientY - tapStartY);
   if (dx < 10 && dy < 10) {
-    toggleEditMode(e);
-    e.preventDefault(); // 防止觸發後續 click
+    const now = Date.now();
+    const isDoubleTap = (now - lastTapTime) < 350;
+    lastTapTime = now;
+    
+    if (!isEditMode) {
+      // 單擊進入編輯模式
+      isEditMode = true;
+      mouthBox.classList.add('edit-mode');
+      setStatus("✏️ 編輯模式：拖動框框，右下角 ⤡ 縮放，雙擊退出");
+    } else if (isDoubleTap) {
+      // 雙擊退出編輯模式
+      isEditMode = false;
+      mouthBox.classList.remove('edit-mode');
+      setStatus("✅ 設定完成！單擊框框可再次編輯");
+    }
+    e.preventDefault();
   }
 }, { passive: false });
 
-// 滑鼠點擊（電腦用）
+// 電腦版：單擊進入，雙擊退出
 mouthBox.addEventListener('click', (e) => {
   if (wasDragging) { wasDragging = false; return; }
-  toggleEditMode(e);
+  if (!isEditMode) {
+    isEditMode = true;
+    mouthBox.classList.add('edit-mode');
+    setStatus("✏️ 編輯模式：拖動框框，右下角 ⤡ 縮放，雙擊退出");
+  }
+});
+mouthBox.addEventListener('dblclick', (e) => {
+  isEditMode = false;
+  mouthBox.classList.remove('edit-mode');
+  setStatus("✅ 設定完成！單擊框框可再次編輯");
 });
 
 // ── 縮放把手 ──
