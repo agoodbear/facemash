@@ -126,7 +126,6 @@ const PAINTINGS = [
   {
     name: "蒙娜麗莎",
     file: "paintings/mona_lisa.jpg",
-    // 初始嘴巴位置（名畫原始尺寸）
     mouth: { x: 305, y: 365, w: 120, h: 45 }
   },
   {
@@ -143,8 +142,46 @@ const PAINTINGS = [
     name: "林布蘭自畫像",
     file: "paintings/rembrandt.jpg",
     mouth: { x: 310, y: 580, w: 130, h: 50 }
+  },
+  {
+    name: "阿波羅貝爾維德雷",
+    file: "paintings/apollo.jpg",
+    mouth: { x: 255, y: 168, w: 65, h: 25 }
+  },
+  {
+    name: "抱銀貂的女人（達文西）",
+    file: "paintings/ermine_lady.jpg",
+    mouth: { x: 285, y: 355, w: 75, h: 30 }
+  },
+  {
+    name: "岩窟聖母（達文西）",
+    file: "paintings/madonna.jpg",
+    mouth: { x: 285, y: 383, w: 55, h: 22 }
+  },
+  {
+    name: "著衣的瑪哈（哥雅）",
+    file: "paintings/maja.jpg",
+    mouth: { x: 449, y: 106, w: 28, h: 14 }
+  },
+  {
+    name: "伊斯沃斯蒙娜麗莎",
+    file: "paintings/mona2.jpg",
+    mouth: { x: 295, y: 345, w: 80, h: 30 }
+  },
+  {
+    name: "戴紅帽的少女（維梅爾）",
+    file: "paintings/red_hat_girl.jpg",
+    mouth: { x: 265, y: 408, w: 70, h: 28 }
+  },
+  {
+    name: "維納斯的誕生（波提切利）",
+    file: "paintings/venus.jpg",
+    mouth: { x: 308, y: 122, w: 25, h: 14 }
   }
 ];
+
+// 備份原始嘴巴座標（用於重置）
+const MOUTH_DEFAULTS = PAINTINGS.map(p => ({ ...p.mouth }));
 
 let currentIdx = 0;
 let paintingImgs = [];
@@ -328,12 +365,7 @@ function positionMouthBox() {
 }
 
 function resetMouth() {
-  // 重置到預設位置
-  const defaults = [
-    { x: 305, y: 365, w: 120, h: 45 },
-    { x: 310, y: 620, w: 130, h: 50 }
-  ];
-  PAINTINGS[currentIdx].mouth = { ...defaults[currentIdx] };
+  PAINTINGS[currentIdx].mouth = { ...MOUTH_DEFAULTS[currentIdx] };
   positionMouthBox();
 }
 
