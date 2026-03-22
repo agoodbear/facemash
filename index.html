@@ -219,23 +219,34 @@ function onDragMove(e) {
 }
 
 function onDragEnd(e) {
+  if (isDragging) wasDragging = true;
   isDragging = false;
 }
 
 // 點擊切換編輯模式（只在沒拖動時觸發）
-let tapStartX, tapStartY;
+let tapStartX, tapStartY, wasDragging = false;
+
 mouthBox.addEventListener('touchstart', (e) => {
   tapStartX = e.touches[0].clientX;
   tapStartY = e.touches[0].clientY;
+  wasDragging = false;
 }, { passive: true });
+
 mouthBox.addEventListener('touchend', (e) => {
-  if (!isDragging) {
-    const dx = Math.abs(e.changedTouches[0].clientX - tapStartX);
-    const dy = Math.abs(e.changedTouches[0].clientY - tapStartY);
-    if (dx < 10 && dy < 10) toggleEditMode(e);
+  if (isDragging) { wasDragging = true; return; }
+  const dx = Math.abs(e.changedTouches[0].clientX - tapStartX);
+  const dy = Math.abs(e.changedTouches[0].clientY - tapStartY);
+  if (dx < 10 && dy < 10) {
+    toggleEditMode(e);
+    e.preventDefault(); // 防止觸發後續 click
   }
+}, { passive: false });
+
+// 滑鼠點擊（電腦用）
+mouthBox.addEventListener('click', (e) => {
+  if (wasDragging) { wasDragging = false; return; }
+  toggleEditMode(e);
 });
-mouthBox.addEventListener('click', toggleEditMode);
 
 // ── 縮放把手 ──
 function onResizeStart(e) {
