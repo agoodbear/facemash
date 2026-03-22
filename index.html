@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>名畫嘴巴合成器 🎨</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -14,24 +14,49 @@
     min-height: 100vh;
     font-family: -apple-system, sans-serif;
     color: white;
-    overflow: hidden;
+    overflow-y: auto;
   }
-  h1 {
-    padding: 12px;
-    font-size: 1.2rem;
-    text-align: center;
-    color: #e94560;
+  h1 { padding: 8px; font-size: 1.1rem; color: #e94560; }
+  #painting-name { font-size: 1rem; color: #ffd460; padding: 2px 8px; }
+  #canvas-wrap {
+    position: relative;
+    touch-action: none;
   }
   #main-canvas {
+    display: block;
     max-width: 100vw;
-    max-height: 70vh;
     border: 2px solid #e94560;
     border-radius: 8px;
   }
+  /* 可拖動的嘴巴框 */
+  #mouth-box {
+    position: absolute;
+    border: 3px dashed #00ff88;
+    border-radius: 50%;
+    cursor: move;
+    touch-action: none;
+    box-shadow: 0 0 10px rgba(0,255,136,0.5);
+  }
+  /* 縮放把手 */
+  #resize-handle {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    background: #00ff88;
+    border-radius: 50%;
+    bottom: -11px;
+    right: -11px;
+    cursor: se-resize;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
   #controls {
     display: flex;
-    gap: 12px;
-    padding: 14px;
+    gap: 8px;
+    padding: 10px;
     flex-wrap: wrap;
     justify-content: center;
   }
@@ -39,60 +64,69 @@
     background: #e94560;
     color: white;
     border: none;
-    padding: 12px 24px;
-    border-radius: 25px;
-    font-size: 1rem;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 0.9rem;
     cursor: pointer;
     touch-action: manipulation;
-    transition: background 0.2s;
   }
   button:active { background: #c73652; }
-  #painting-name {
-    font-size: 1.1rem;
-    padding: 4px 12px;
-    text-align: center;
-    color: #ffd460;
-  }
-  #status {
-    font-size: 0.85rem;
-    color: #aaa;
-    padding: 4px 12px;
-    text-align: center;
-  }
+  .btn-green { background: #00aa55; }
+  .btn-green:active { background: #008844; }
+  #status { font-size: 0.8rem; color: #aaa; padding: 2px 8px; text-align: center; }
   #video-hidden { display: none; }
+  #video-preview {
+    width: 80px; height: 65px;
+    border-radius: 8px;
+    border: 2px solid #e94560;
+    position: fixed;
+    bottom: 70px; right: 8px;
+    object-fit: cover;
+    z-index: 100;
+  }
+  #coords-display {
+    font-size: 0.75rem;
+    color: #888;
+    padding: 2px 8px;
+    font-family: monospace;
+  }
 </style>
 </head>
 <body>
 
 <h1>🎨 名畫嘴巴合成器</h1>
 <div id="painting-name">蒙娜麗莎</div>
-<canvas id="main-canvas"></canvas>
-<div id="status">🔄 載入中...</div>
+<div id="canvas-wrap">
+  <canvas id="main-canvas"></canvas>
+  <div id="mouth-box">
+    <div id="resize-handle">⤡</div>
+  </div>
+</div>
+<div id="status">載入中...</div>
+<div id="coords-display">x:305 y:365 w:120 h:45</div>
 
 <div id="controls">
-  <button onclick="prevPainting()">⬅️ 上一張</button>
-  <button onclick="nextPainting()">下一張 ➡️</button>
-  <button onclick="saveScreenshot()">📸 截圖</button>
+  <button onclick="prevPainting()">⬅️</button>
+  <button onclick="nextPainting()">➡️ 換畫</button>
+  <button class="btn-green" onclick="saveScreenshot()">📸 截圖</button>
+  <button onclick="resetMouth()">🔄 重置</button>
 </div>
 
 <video id="video-hidden" autoplay playsinline muted></video>
-<video id="video-preview" autoplay playsinline muted style="width:100px;height:80px;border-radius:8px;border:2px solid #e94560;display:none;position:fixed;bottom:80px;right:10px;object-fit:cover;z-index:100;"></video>
+<video id="video-preview" autoplay playsinline muted></video>
 
 <script>
-// ── 名畫設定（嘴巴位置需根據圖片手動調整）──
 const PAINTINGS = [
   {
     name: "蒙娜麗莎",
     file: "paintings/mona_lisa.jpg",
-    // mouth 位置 (x, y, w, h) 以名畫原始尺寸為基準
-    // mona_lisa.jpg: 800x1192
+    // 初始嘴巴位置（名畫原始尺寸）
     mouth: { x: 305, y: 365, w: 120, h: 45 }
   },
   {
     name: "戴珍珠耳環的少女",
     file: "paintings/girl_pearl.jpg",
-    // girl_pearl.jpg: 800x947
-    mouth: { x: 310, y: 620, w: 190, h: 70 }
+    mouth: { x: 310, y: 620, w: 130, h: 50 }
   }
 ];
 
@@ -102,9 +136,131 @@ let videoEl = document.getElementById('video-hidden');
 let canvas = document.getElementById('main-canvas');
 let ctx = canvas.getContext('2d');
 let faceApiLoaded = false;
-let animFrame = null;
+let lastFaceLandmarks = null;
+let frameCount = 0;
+let paintScale = 1;
 
-// ── 載入 face-api.js（用 CDN）──
+// ── 嘴巴框拖動狀態 ──
+let mouthBox = document.getElementById('mouth-box');
+let resizeHandle = document.getElementById('resize-handle');
+let isDragging = false, isResizing = false;
+let dragStartX, dragStartY, boxStartLeft, boxStartTop;
+let resizeStartX, resizeStartY, boxStartW, boxStartH;
+
+// 把顯示座標轉回原始圖片座標
+function getOrigCoords() {
+  const wrap = document.getElementById('canvas-wrap');
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  
+  const left = parseInt(mouthBox.style.left) || 0;
+  const top = parseInt(mouthBox.style.top) || 0;
+  const w = parseInt(mouthBox.style.width) || 120;
+  const h = parseInt(mouthBox.style.height) || 45;
+  
+  return {
+    x: Math.round(left / paintScale),
+    y: Math.round(top / paintScale),
+    w: Math.round(w / paintScale),
+    h: Math.round(h / paintScale)
+  };
+}
+
+function updateCoordsDisplay() {
+  const c = getOrigCoords();
+  document.getElementById('coords-display').textContent = 
+    `x:${c.x} y:${c.y} w:${c.w} h:${c.h}`;
+  // 同步到 PAINTINGS 儲存
+  PAINTINGS[currentIdx].mouth = c;
+}
+
+// ── 拖動嘴巴框 ──
+function onDragStart(e) {
+  if (e.target === resizeHandle) return;
+  isDragging = true;
+  const touch = e.touches ? e.touches[0] : e;
+  dragStartX = touch.clientX;
+  dragStartY = touch.clientY;
+  boxStartLeft = parseInt(mouthBox.style.left) || 0;
+  boxStartTop = parseInt(mouthBox.style.top) || 0;
+  e.preventDefault();
+}
+
+function onDragMove(e) {
+  if (!isDragging) return;
+  const touch = e.touches ? e.touches[0] : e;
+  const dx = touch.clientX - dragStartX;
+  const dy = touch.clientY - dragStartY;
+  mouthBox.style.left = (boxStartLeft + dx) + 'px';
+  mouthBox.style.top = (boxStartTop + dy) + 'px';
+  updateCoordsDisplay();
+  e.preventDefault();
+}
+
+function onDragEnd(e) {
+  isDragging = false;
+}
+
+// ── 縮放把手 ──
+function onResizeStart(e) {
+  isResizing = true;
+  const touch = e.touches ? e.touches[0] : e;
+  resizeStartX = touch.clientX;
+  resizeStartY = touch.clientY;
+  boxStartW = parseInt(mouthBox.style.width) || 120;
+  boxStartH = parseInt(mouthBox.style.height) || 45;
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function onResizeMove(e) {
+  if (!isResizing) return;
+  const touch = e.touches ? e.touches[0] : e;
+  const dw = touch.clientX - resizeStartX;
+  const dh = touch.clientY - resizeStartY;
+  const newW = Math.max(40, boxStartW + dw);
+  const newH = Math.max(20, boxStartH + dh);
+  mouthBox.style.width = newW + 'px';
+  mouthBox.style.height = newH + 'px';
+  updateCoordsDisplay();
+  e.preventDefault();
+}
+
+function onResizeEnd(e) {
+  isResizing = false;
+}
+
+// 綁定事件
+mouthBox.addEventListener('mousedown', onDragStart);
+mouthBox.addEventListener('touchstart', onDragStart, { passive: false });
+document.addEventListener('mousemove', (e) => { onDragMove(e); onResizeMove(e); });
+document.addEventListener('touchmove', (e) => { onDragMove(e); onResizeMove(e); }, { passive: false });
+document.addEventListener('mouseup', (e) => { onDragEnd(e); onResizeEnd(e); });
+document.addEventListener('touchend', (e) => { onDragEnd(e); onResizeEnd(e); });
+resizeHandle.addEventListener('mousedown', onResizeStart);
+resizeHandle.addEventListener('touchstart', onResizeStart, { passive: false });
+
+// ── 更新嘴巴框位置 ──
+function positionMouthBox() {
+  const m = PAINTINGS[currentIdx].mouth;
+  mouthBox.style.left = Math.round(m.x * paintScale) + 'px';
+  mouthBox.style.top = Math.round(m.y * paintScale) + 'px';
+  mouthBox.style.width = Math.round(m.w * paintScale) + 'px';
+  mouthBox.style.height = Math.round(m.h * paintScale) + 'px';
+  updateCoordsDisplay();
+}
+
+function resetMouth() {
+  // 重置到預設位置
+  const defaults = [
+    { x: 305, y: 365, w: 120, h: 45 },
+    { x: 310, y: 620, w: 130, h: 50 }
+  ];
+  PAINTINGS[currentIdx].mouth = { ...defaults[currentIdx] };
+  positionMouthBox();
+}
+
+// ── 載入腳本 ──
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     let s = document.createElement('script');
@@ -116,183 +272,132 @@ function loadScript(src) {
 }
 
 async function init() {
-  // 載入名畫
   setStatus("🎨 載入名畫...");
   for (let p of PAINTINGS) {
     let img = new Image();
     img.crossOrigin = "anonymous";
-    await new Promise((res) => {
-      img.onload = res;
-      img.onerror = res; // 失敗也繼續
-      img.src = p.file;
-    });
+    await new Promise((res) => { img.onload = res; img.onerror = res; img.src = p.file; });
     paintingImgs.push(img);
   }
-  
-  setStatus("📷 請允許相機存取...");
-  
+
+  setStatus("📷 請允許相機...");
   try {
-    let stream = await navigator.mediaDevices.getUserMedia({ 
-      video: { facingMode: 'user', width: 640, height: 480 } 
-    });
+    let stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
     videoEl.srcObject = stream;
+    document.getElementById('video-preview').srcObject = stream;
     await new Promise(r => { videoEl.onloadedmetadata = r; });
     videoEl.play();
-    // 顯示小預覽確認鏡頭有開
-    const preview = document.getElementById('video-preview');
-    preview.srcObject = stream;
-    preview.style.display = 'block';
-    setStatus("😊 把臉對準鏡頭！換名畫用按鈕");
+    setStatus("✅ 拖動綠色框調整嘴巴位置！");
     
-    // 載入 face-api.js（相機開好後才載）
-    try {
-      await loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js');
+    // 背景載入 face-api
+    loadScript('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js').then(async () => {
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'),
         faceapi.nets.faceLandmark68TinyNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights')
       ]);
       faceApiLoaded = true;
-      setStatus("✅ 準備好了！把嘴巴對準鏡頭");
-    } catch(e) {
-      setStatus("😊 相機已開啟（簡化模式，嘴巴偵測需要稍等）");
-    }
+      setStatus("🎯 精確模式啟動！拖動綠框調位置");
+    }).catch(() => {});
     
     startLoop();
   } catch(e) {
-    setStatus("❌ 請允許相機存取後重新整理頁面");
-    // 顯示一個提示按鈕
-    document.getElementById('controls').innerHTML = 
-      '<button onclick="location.reload()">🔄 重新整理並允許相機</button>' +
-      document.getElementById('controls').innerHTML;
+    setStatus("❌ 請允許相機存取後重新整理");
   }
 }
 
-// ── 主迴圈 ──
-let lastFaceLandmarks = null;
-let frameCount = 0;
-
-// 用 Canvas 自製人臉偵測（不依賴 face-api）
-// 從鏡頭中央裁取「嘴巴區域」（鏡頭下半部中間）
 function getMouthRegionFromVideo() {
-  const vw = videoEl.videoWidth;
-  const vh = videoEl.videoHeight;
+  const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
   if (!vw || !vh) return null;
-  
-  // 假設臉在畫面中央，嘴巴在臉的下半部
-  // 取畫面中央 40% 寬、下方 25-45% 高的區域
-  const sx = vw * 0.25;
-  const sy = vh * 0.55;  // 嘴巴約在鏡頭畫面的 55-75% 高度
-  const sw = vw * 0.50;
-  const sh = vh * 0.20;
-  return { sx, sy, sw, sh };
+  return { sx: vw*0.25, sy: vh*0.55, sw: vw*0.50, sh: vh*0.20 };
 }
 
 async function startLoop() {
   const loop = async () => {
     drawFrame();
-    
-    // 如果 face-api 載好了，用精確偵測
     if (frameCount % 4 === 0 && faceApiLoaded) {
       try {
         const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 });
         const result = await faceapi.detectSingleFace(videoEl, options).withFaceLandmarks(true);
-        if (result) {
-          lastFaceLandmarks = result.landmarks;
-        }
+        if (result) lastFaceLandmarks = result.landmarks;
       } catch(e) {}
     }
-    
     frameCount++;
-    animFrame = requestAnimationFrame(loop);
+    requestAnimationFrame(loop);
   };
   loop();
 }
 
 function drawFrame() {
-  const painting = PAINTINGS[currentIdx];
   const paintImg = paintingImgs[currentIdx];
   if (!paintImg) return;
+
+  const maxH = Math.min(window.innerHeight * 0.70, 750);
+  paintScale = maxH / paintImg.height;
+  canvas.width = Math.round(paintImg.width * paintScale);
+  canvas.height = Math.round(paintImg.height * paintScale);
   
-  // 設定 canvas 大小
-  const maxH = Math.min(window.innerHeight * 0.90, 900);
-  const scale = maxH / paintImg.height;
-  canvas.width = paintImg.width * scale;
-  canvas.height = paintImg.height * scale;
-  
-  // 畫名畫
   ctx.drawImage(paintImg, 0, 0, canvas.width, canvas.height);
-  
+
   if (videoEl.readyState < 2) return;
   
-  const m = painting.mouth;
-  const tx = m.x * scale;
-  const ty = m.y * scale;
-  const tw = m.w * scale;
-  const th = m.h * scale;
+  // 取嘴巴框的當前位置（從 DOM 讀取，因為使用者可以拖動）
+  const boxLeft = parseInt(mouthBox.style.left) || Math.round(PAINTINGS[currentIdx].mouth.x * paintScale);
+  const boxTop = parseInt(mouthBox.style.top) || Math.round(PAINTINGS[currentIdx].mouth.y * paintScale);
+  const boxW = parseInt(mouthBox.style.width) || Math.round(PAINTINGS[currentIdx].mouth.w * paintScale);
+  const boxH = parseInt(mouthBox.style.height) || Math.round(PAINTINGS[currentIdx].mouth.h * paintScale);
   
   let sx, sy, sw, sh;
   
   if (lastFaceLandmarks) {
-    // 精確模式：用 face-api 偵測到的嘴巴 landmark
     const mouthPts = lastFaceLandmarks.getMouth();
-    const vw = videoEl.videoWidth;
-    const vh = videoEl.videoHeight;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (let pt of mouthPts) {
-      minX = Math.min(minX, pt.x);
-      maxX = Math.max(maxX, pt.x);
-      minY = Math.min(minY, pt.y);
-      maxY = Math.max(maxY, pt.y);
-    }
-    const padX = (maxX - minX) * 0.3;
-    const padY = (maxY - minY) * 0.4;
-    sx = Math.max(0, minX - padX);
-    sy = Math.max(0, minY - padY);
-    sw = Math.min(vw - sx, (maxX - minX) + padX * 2);
-    sh = Math.min(vh - sy, (maxY - minY) + padY * 2);
+    const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    for (let pt of mouthPts) { minX=Math.min(minX,pt.x); maxX=Math.max(maxX,pt.x); minY=Math.min(minY,pt.y); maxY=Math.max(maxY,pt.y); }
+    const padX=(maxX-minX)*0.3, padY=(maxY-minY)*0.4;
+    sx=Math.max(0,minX-padX); sy=Math.max(0,minY-padY);
+    sw=Math.min(vw-sx,(maxX-minX)+padX*2); sh=Math.min(vh-sy,(maxY-minY)+padY*2);
   } else {
-    // 簡化模式：直接抓鏡頭中央下方區域當嘴巴
     const r = getMouthRegionFromVideo();
     if (!r) return;
     ({ sx, sy, sw, sh } = r);
   }
-  
-  // 羽化橢圓形貼上
+
   ctx.save();
   ctx.beginPath();
-  ctx.ellipse(tx + tw/2, ty + th/2, tw/2 * 1.05, th/2 * 1.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(boxLeft+boxW/2, boxTop+boxH/2, boxW/2*1.05, boxH/2*1.15, 0, 0, Math.PI*2);
   ctx.clip();
-  ctx.drawImage(videoEl, sx, sy, sw, sh, tx - tw*0.02, ty - th*0.08, tw*1.04, th*1.16);
+  ctx.drawImage(videoEl, sx, sy, sw, sh, boxLeft-boxW*0.02, boxTop-boxH*0.08, boxW*1.04, boxH*1.16);
   ctx.restore();
+  
+  // 更新綠框位置（確保跟 canvas 同步）
+  if (!isDragging && !isResizing) {
+    positionMouthBox();
+  }
 }
 
 function nextPainting() {
-  currentIdx = (currentIdx + 1) % PAINTINGS.length;
+  currentIdx = (currentIdx+1) % PAINTINGS.length;
   document.getElementById('painting-name').textContent = PAINTINGS[currentIdx].name;
+  positionMouthBox();
 }
 
 function prevPainting() {
-  currentIdx = (currentIdx - 1 + PAINTINGS.length) % PAINTINGS.length;
+  currentIdx = (currentIdx-1+PAINTINGS.length) % PAINTINGS.length;
   document.getElementById('painting-name').textContent = PAINTINGS[currentIdx].name;
+  positionMouthBox();
 }
 
 function saveScreenshot() {
+  // 截圖時隱藏綠框
+  mouthBox.style.display = 'none';
   const link = document.createElement('a');
   link.download = `facemash_${Date.now()}.png`;
   link.href = canvas.toDataURL('image/png');
   link.click();
+  setTimeout(() => mouthBox.style.display = '', 100);
 }
 
-function setStatus(msg) {
-  document.getElementById('status').textContent = msg;
-}
-
-// 鍵盤快捷鍵
-document.addEventListener('keydown', e => {
-  if (e.key === 'n' || e.key === 'N') nextPainting();
-  if (e.key === 'p' || e.key === 'P') prevPainting();
-  if (e.key === 's' || e.key === 'S') saveScreenshot();
-});
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
 
 init();
 </script>
