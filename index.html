@@ -171,11 +171,27 @@ async function init() {
 let lastFaceLandmarks = null;
 let frameCount = 0;
 
+// 用 Canvas 自製人臉偵測（不依賴 face-api）
+// 從鏡頭中央裁取「嘴巴區域」（鏡頭下半部中間）
+function getMouthRegionFromVideo() {
+  const vw = videoEl.videoWidth;
+  const vh = videoEl.videoHeight;
+  if (!vw || !vh) return null;
+  
+  // 假設臉在畫面中央，嘴巴在臉的下半部
+  // 取畫面中央 40% 寬、下方 25-45% 高的區域
+  const sx = vw * 0.25;
+  const sy = vh * 0.55;  // 嘴巴約在鏡頭畫面的 55-75% 高度
+  const sw = vw * 0.50;
+  const sh = vh * 0.20;
+  return { sx, sy, sw, sh };
+}
+
 async function startLoop() {
   const loop = async () => {
     drawFrame();
     
-    // 每 4 幀偵測一次臉（省效能）
+    // 如果 face-api 載好了，用精確偵測
     if (frameCount % 4 === 0 && faceApiLoaded) {
       try {
         const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.4 });
@@ -198,7 +214,7 @@ function drawFrame() {
   if (!paintImg) return;
   
   // 設定 canvas 大小
-  const maxH = Math.min(window.innerHeight * 0.65, 600);
+  const maxH = Math.min(window.innerHeight * 0.62, 600);
   const scale = maxH / paintImg.height;
   canvas.width = paintImg.width * scale;
   canvas.height = paintImg.height * scale;
@@ -206,14 +222,21 @@ function drawFrame() {
   // 畫名畫
   ctx.drawImage(paintImg, 0, 0, canvas.width, canvas.height);
   
-  // 如果有偵測到嘴巴，貼上
-  if (lastFaceLandmarks && videoEl.readyState >= 2) {
+  if (videoEl.readyState < 2) return;
+  
+  const m = painting.mouth;
+  const tx = m.x * scale;
+  const ty = m.y * scale;
+  const tw = m.w * scale;
+  const th = m.h * scale;
+  
+  let sx, sy, sw, sh;
+  
+  if (lastFaceLandmarks) {
+    // 精確模式：用 face-api 偵測到的嘴巴 landmark
     const mouthPts = lastFaceLandmarks.getMouth();
-    
-    // 計算嘴巴在 video 中的位置
     const vw = videoEl.videoWidth;
     const vh = videoEl.videoHeight;
-    
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (let pt of mouthPts) {
       minX = Math.min(minX, pt.x);
@@ -221,38 +244,26 @@ function drawFrame() {
       minY = Math.min(minY, pt.y);
       maxY = Math.max(maxY, pt.y);
     }
-    
-    // 加 padding
-    const padX = (maxX - minX) * 0.25;
-    const padY = (maxY - minY) * 0.35;
-    const sx = Math.max(0, minX - padX);
-    const sy = Math.max(0, minY - padY);
-    const sw = Math.min(vw - sx, (maxX - minX) + padX * 2);
-    const sh = Math.min(vh - sy, (maxY - minY) + padY * 2);
-    
-    // 名畫目標嘴巴位置（scaled）
-    const m = painting.mouth;
-    const tx = m.x * scale;
-    const ty = m.y * scale;
-    const tw = m.w * scale;
-    const th = m.h * scale;
-    
-    // 用 offscreen canvas 做嘴巴裁切
-    const offCanvas = document.createElement('canvas');
-    offCanvas.width = sw;
-    offCanvas.height = sh;
-    const offCtx = offCanvas.getContext('2d');
-    offCtx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, sw, sh);
-    
-    // 羽化貼上
-    ctx.save();
-    // 建立橢圓形 clip
-    ctx.beginPath();
-    ctx.ellipse(tx + tw/2, ty + th/2, tw/2 * 1.1, th/2 * 1.2, 0, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(offCanvas, tx - tw*0.05, ty - th*0.1, tw*1.1, th*1.2);
-    ctx.restore();
+    const padX = (maxX - minX) * 0.3;
+    const padY = (maxY - minY) * 0.4;
+    sx = Math.max(0, minX - padX);
+    sy = Math.max(0, minY - padY);
+    sw = Math.min(vw - sx, (maxX - minX) + padX * 2);
+    sh = Math.min(vh - sy, (maxY - minY) + padY * 2);
+  } else {
+    // 簡化模式：直接抓鏡頭中央下方區域當嘴巴
+    const r = getMouthRegionFromVideo();
+    if (!r) return;
+    ({ sx, sy, sw, sh } = r);
   }
+  
+  // 羽化橢圓形貼上
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(tx + tw/2, ty + th/2, tw/2 * 1.05, th/2 * 1.15, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(videoEl, sx, sy, sw, sh, tx - tw*0.02, ty - th*0.08, tw*1.04, th*1.16);
+  ctx.restore();
 }
 
 function nextPainting() {
