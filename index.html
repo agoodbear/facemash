@@ -180,25 +180,26 @@ function updateCoordsDisplay() {
   PAINTINGS[currentIdx].mouth = c;
 }
 
-// ── 切換編輯模式 ──
-function toggleEditMode(e) {
-  if (e.target === resizeHandle) return;
-  if (isDragging) return; // 拖動後不切換
-  isEditMode = !isEditMode;
-  if (isEditMode) {
-    mouthBox.classList.add('edit-mode');
-    setStatus("✏️ 編輯模式：拖動框框調位置，右下角 ⤡ 縮放");
-  } else {
-    mouthBox.classList.remove('edit-mode');
-    setStatus("✅ 設定完成！點框框可再次編輯");
-  }
+// ── 拖動嘴巴框 ──
+let tapStartX, tapStartY, tapMoved = false;
+
+function enterEditMode() {
+  isEditMode = true;
+  mouthBox.classList.add('edit-mode');
+  setStatus("✏️ 拖動調位置，右下角縮放，連點兩下退出");
 }
 
-// ── 拖動嘴巴框 ──
+function exitEditMode() {
+  isEditMode = false;
+  mouthBox.classList.remove('edit-mode');
+  setStatus("✅ 完成！點嘴巴位置可再次調整");
+}
+
 function onDragStart(e) {
-  if (!isEditMode) return;
   if (e.target === resizeHandle) return;
+  if (!isEditMode) return;
   isDragging = true;
+  tapMoved = false;
   const touch = e.touches ? e.touches[0] : e;
   dragStartX = touch.clientX;
   dragStartY = touch.clientY;
@@ -212,6 +213,7 @@ function onDragMove(e) {
   const touch = e.touches ? e.touches[0] : e;
   const dx = touch.clientX - dragStartX;
   const dy = touch.clientY - dragStartY;
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) tapMoved = true;
   mouthBox.style.left = (boxStartLeft + dx) + 'px';
   mouthBox.style.top = (boxStartTop + dy) + 'px';
   updateCoordsDisplay();
@@ -219,57 +221,52 @@ function onDragMove(e) {
 }
 
 function onDragEnd(e) {
-  if (isDragging) wasDragging = true;
   isDragging = false;
 }
 
-// 單擊進入編輯模式，雙擊退出
-let tapStartX, tapStartY, wasDragging = false;
+// ── 點擊邏輯（用 touchstart/touchend 自己管，不依賴 click）──
 let lastTapTime = 0;
 
 mouthBox.addEventListener('touchstart', (e) => {
+  if (e.target === resizeHandle) return;
   tapStartX = e.touches[0].clientX;
   tapStartY = e.touches[0].clientY;
-  wasDragging = false;
-}, { passive: true });
-
-mouthBox.addEventListener('touchend', (e) => {
-  if (isDragging) { wasDragging = true; return; }
-  const dx = Math.abs(e.changedTouches[0].clientX - tapStartX);
-  const dy = Math.abs(e.changedTouches[0].clientY - tapStartY);
-  if (dx < 10 && dy < 10) {
-    const now = Date.now();
-    const isDoubleTap = (now - lastTapTime) < 350;
-    lastTapTime = now;
-    
-    if (!isEditMode) {
-      // 單擊進入編輯模式
-      isEditMode = true;
-      mouthBox.classList.add('edit-mode');
-      setStatus("✏️ 編輯模式：拖動框框，右下角 ⤡ 縮放，雙擊退出");
-    } else if (isDoubleTap) {
-      // 雙擊退出編輯模式
-      isEditMode = false;
-      mouthBox.classList.remove('edit-mode');
-      setStatus("✅ 設定完成！單擊框框可再次編輯");
-    }
-    e.preventDefault();
-  }
+  tapMoved = false;
+  // 同時觸發拖動
+  if (isEditMode) onDragStart(e);
 }, { passive: false });
 
-// 電腦版：單擊進入，雙擊退出
-mouthBox.addEventListener('click', (e) => {
-  if (wasDragging) { wasDragging = false; return; }
+mouthBox.addEventListener('touchend', (e) => {
+  if (e.target === resizeHandle) return;
+  onDragEnd(e);
+  if (tapMoved) return; // 有移動就不算點擊
+  
+  const now = Date.now();
+  const gap = now - lastTapTime;
+  lastTapTime = now;
+  
   if (!isEditMode) {
-    isEditMode = true;
-    mouthBox.classList.add('edit-mode');
-    setStatus("✏️ 編輯模式：拖動框框，右下角 ⤡ 縮放，雙擊退出");
+    enterEditMode();
+  } else if (gap < 400) {
+    // 雙擊退出
+    exitEditMode();
   }
+  e.preventDefault();
+}, { passive: false });
+
+// 電腦滑鼠版
+mouthBox.addEventListener('mousedown', (e) => {
+  if (e.target === resizeHandle) return;
+  tapMoved = false;
+  if (isEditMode) onDragStart(e);
+});
+mouthBox.addEventListener('click', (e) => {
+  if (e.target === resizeHandle) return;
+  if (tapMoved) return;
+  if (!isEditMode) enterEditMode();
 });
 mouthBox.addEventListener('dblclick', (e) => {
-  isEditMode = false;
-  mouthBox.classList.remove('edit-mode');
-  setStatus("✅ 設定完成！單擊框框可再次編輯");
+  if (isEditMode) exitEditMode();
 });
 
 // ── 縮放把手 ──
@@ -302,13 +299,11 @@ function onResizeEnd(e) {
   isResizing = false;
 }
 
-// 綁定事件
-mouthBox.addEventListener('mousedown', onDragStart);
-mouthBox.addEventListener('touchstart', onDragStart, { passive: false });
+// 綁定事件（mouthBox 的 mousedown/touchstart 在上方點擊邏輯裡處理）
 document.addEventListener('mousemove', (e) => { onDragMove(e); onResizeMove(e); });
 document.addEventListener('touchmove', (e) => { onDragMove(e); onResizeMove(e); }, { passive: false });
 document.addEventListener('mouseup', (e) => { onDragEnd(e); onResizeEnd(e); });
-document.addEventListener('touchend', (e) => { onDragEnd(e); onResizeEnd(e); });
+document.addEventListener('touchend', (e) => { onResizeEnd(e); });
 resizeHandle.addEventListener('mousedown', onResizeStart);
 resizeHandle.addEventListener('touchstart', onResizeStart, { passive: false });
 
